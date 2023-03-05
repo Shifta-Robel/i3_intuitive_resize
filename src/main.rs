@@ -2,7 +2,7 @@ use i3ipc::{reply::Node, I3Connection};
 use std::env;
 
 const STEP_COUNT: &str = "10 px or 10 ppt";
-const ASSUMED_INNER_GAP: u8 = 20;
+const ASSUMED_MAX_INNER_GAP: u8 = 20;
 
 #[derive(Debug)]
 enum Motions {
@@ -28,13 +28,13 @@ fn find_focused(node: &Node) -> Option<&Node> {
 fn get_args() -> (Motions, String) {
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
-        panic!("invalid arguments ");
+        panic!("No arguments supplied ");
     }
 
     let move_to: Motions;
     let move_by: String;
 
-    let dir_arg: &str = &args[1][..];
+    let dir_arg: &str = &args[1][..].to_lowercase();
     match dir_arg {
         "left" => move_to = Motions::Left,
         "right" => move_to = Motions::Right,
@@ -43,10 +43,8 @@ fn get_args() -> (Motions, String) {
         _ => panic!("invalid argument"),
     }
 
-    let step_arg: &str;
     if args.len() > 2 {
-        step_arg = &args[2][..];
-        // todo!(" check if val is a valid number");
+        let step_arg = &args[2][..].parse::<i32>().expect("Invalid argument passed");
         move_by = format!("{step_arg} px or {step_arg} ppt");
     } else {
         move_by = String::from(STEP_COUNT);
@@ -56,26 +54,28 @@ fn get_args() -> (Motions, String) {
 
 fn main() {
     let (move_to, move_by) = get_args();
-    let mut connection = I3Connection::connect().unwrap();
-    let focused_node_rect = find_focused(&connection.get_tree().unwrap()).unwrap().rect;
-    let w_spaces = connection.get_workspaces().unwrap();
-    let workspace_rect = w_spaces.workspaces.get(0).unwrap().rect;
+    let mut connection = I3Connection::connect().expect("Failed to create connection");
+    let tree = &connection.get_tree().expect("Failed to get Node");
+    let focused_node_rect = match find_focused(tree) {
+        Some(node) => node,
+        None => panic!("Failed to find focused node"),
+    }
+    .rect;
+    let w_spaces = connection.get_workspaces().expect("Failed to get current workspaces");
+    let workspace_rect = w_spaces.workspaces.get(0).expect("No workspaces found").rect;
 
     let (mut upper_corner, mut bottom_corner, mut right_corner, mut left_corner) =
         (false, false, false, false);
 
-    if focused_node_rect.0 - workspace_rect.0 < ASSUMED_INNER_GAP.into() {
+    if focused_node_rect.0 - workspace_rect.0 < ASSUMED_MAX_INNER_GAP.into() {
         left_corner = true;
     }
-
-    if focused_node_rect.1 - workspace_rect.1 < ASSUMED_INNER_GAP.into() {
+    if focused_node_rect.1 - workspace_rect.1 < ASSUMED_MAX_INNER_GAP.into() {
         upper_corner = true;
     }
-
     if focused_node_rect.0 + focused_node_rect.2 == workspace_rect.2 {
         right_corner = true;
     }
-
     if focused_node_rect.1 + focused_node_rect.3 == workspace_rect.3 {
         bottom_corner = true;
     }
@@ -106,7 +106,7 @@ fn main() {
             if right_corner && !left_corner {
                 "resize grow width ".into()
             } else {
-                "resize shrink widht ".into()
+                "resize shrink width ".into()
             }
         }
     };
