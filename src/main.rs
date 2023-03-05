@@ -26,13 +26,13 @@ fn find_focused(node: &Node) -> Option<&Node> {
 }
 
 fn get_args() -> (Motions, String) {
+    let move_to: Motions;
+    let move_by: String;
+
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         panic!("No arguments supplied ");
     }
-
-    let move_to: Motions;
-    let move_by: String;
 
     let dir_arg: &str = &args[1][..].to_lowercase();
     match dir_arg {
@@ -61,56 +61,51 @@ fn main() {
         None => panic!("Failed to find focused node"),
     }
     .rect;
-    let w_spaces = connection.get_workspaces().expect("Failed to get current workspaces");
-    let workspace_rect = w_spaces.workspaces.get(0).expect("No workspaces found").rect;
+    let w_spaces = connection
+        .get_workspaces()
+        .expect("Failed to get current workspaces");
+    let workspace_rect = w_spaces
+        .workspaces
+        .get(0)
+        .expect("No workspaces found")
+        .rect;
 
-    let (mut upper_corner, mut bottom_corner, mut right_corner, mut left_corner) =
-        (false, false, false, false);
+    let left_corner = focused_node_rect.0 - workspace_rect.0 < ASSUMED_MAX_INNER_GAP.into();
+    let upper_corner = focused_node_rect.1 - workspace_rect.1 < ASSUMED_MAX_INNER_GAP.into();
+    let right_corner = focused_node_rect.0 + focused_node_rect.2 == workspace_rect.2;
+    let bottom_corner = focused_node_rect.1 + focused_node_rect.3 == workspace_rect.3;
 
-    if focused_node_rect.0 - workspace_rect.0 < ASSUMED_MAX_INNER_GAP.into() {
-        left_corner = true;
-    }
-    if focused_node_rect.1 - workspace_rect.1 < ASSUMED_MAX_INNER_GAP.into() {
-        upper_corner = true;
-    }
-    if focused_node_rect.0 + focused_node_rect.2 == workspace_rect.2 {
-        right_corner = true;
-    }
-    if focused_node_rect.1 + focused_node_rect.3 == workspace_rect.3 {
-        bottom_corner = true;
-    }
-
-    let mut command: String = match move_to {
+    let command: &str = match move_to {
         Motions::Up => {
             if upper_corner && !bottom_corner {
-                "resize shrink height ".into()
+                "shrink height"
             } else {
-                "resize grow height ".into()
+                "grow height"
             }
         }
         Motions::Down => {
             if upper_corner && !bottom_corner {
-                "resize grow height ".into()
+                "grow height"
             } else {
-                "resize shrink height ".into()
+                "shrink height"
             }
         }
         Motions::Right => {
             if right_corner && !left_corner {
-                "resize shrink width ".into()
+                "shrink width"
             } else {
-                "resize grow width ".into()
+                "grow width"
             }
         }
         Motions::Left => {
             if right_corner && !left_corner {
-                "resize grow width ".into()
+                "grow width"
             } else {
-                "resize shrink width ".into()
+                "shrink width"
             }
         }
     };
-    command.push_str(&move_by);
+    let command = format!("resize {} {}", command, move_by);
 
     connection
         .run_command(&command)
